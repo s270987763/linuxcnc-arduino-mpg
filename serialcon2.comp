@@ -1,0 +1,244 @@
+/********************************************************************************
+Serial communications to arduino with a userspace component
+
+
+*********************************************************************************/
+
+component serialcon2                "This component services the arduino pendant";
+
+pin in float xposition              "Receives current position from Xpos";
+pin in float yposition              "Receives current position from Ypos";
+pin in float zposition              "Receives current position from Zpos";
+
+option singleton yes;               // makes no sense to have more than one of these components running
+option userspace yes;
+
+author "ArcEye arceyeATmgwareDOTcoDOTuk";
+license "GPL";
+;;
+
+#include <stdio.h>    /* Standard input/output definitions */
+#include <stdlib.h> 
+#include <stdint.h>   /* Standard types */
+#include <string.h>   /* String function definitions */
+#include <unistd.h>   /* UNIX standard function definitions */
+#include <fcntl.h>    /* File control definitions */
+#include <errno.h>    /* Error number definitions */
+#include <termios.h>  /* POSIX terminal control definitions */
+#include <sys/ioctl.h>
+
+#define BAUDRATE B115200
+
+    // IF THIS IS NOT THE DEVICE YOUR ARDUINO USES, CHANGE IT
+#define DEVICE "/dev/ttyUSB0"
+
+#define _POSIX_SOURCE 1 /* POSIX compliant source */
+
+    // predefs of later functions
+void sendCommand(char);
+int serialport_init();
+                             
+struct termios toptions;;       // port setup
+
+void user_mainloop(void)
+{
+char buffer[50];
+char ch;
+
+int fd = serialport_init();
+    
+    while(fd != -1)
+        {
+        usleep(100000);
+        FOR_ALL_INSTS()  
+            { 
+            bzero(buffer, 50); 
+            sprintf(buffer, "X%08.03fY%08.03fZ%08.03f", xposition, yposition, zposition);
+            write(fd, buffer, sizeof(buffer));                                                  
+            
+            if(read(fd,&ch,1) == 1)  // if command byte read from arduino
+                sendCommand(ch);
+            }           
+        }
+
+    close(fd);
+    exit(0);
+}
+
+//######################################################################
+
+int serialport_init()
+{
+int fd;
+ 
+    fd = open(DEVICE, O_RDWR | O_NOCTTY | O_NDELAY);
+    if (fd == -1)  
+        {
+        perror("init_serialport: Unable to open port ");
+        return -1;
+        }
+    
+    if (tcgetattr(fd, &toptions) < 0) 
+        {
+        perror("init_serialport: Couldn't get term attributes");
+        return -1;
+        }
+    speed_t brate = BAUDRATE; 
+    cfsetispeed(&toptions, brate);
+    cfsetospeed(&toptions, brate);
+    // 8N1
+    toptions.c_cflag &= ~PARENB;
+    toptions.c_cflag &= ~CSTOPB;
+    toptions.c_cflag &= ~CSIZE;
+    toptions.c_cflag |= CS8;
+    // no flow control
+    toptions.c_cflag &= ~CRTSCTS;
+
+    toptions.c_cflag |= CREAD | CLOCAL;  // turn on READ & ignore ctrl lines
+    toptions.c_iflag &= ~(IXON | IXOFF | IXANY); // turn off s/w flow ctrl
+
+    toptions.c_lflag &= ~(ICANON | ECHO | ECHOE | ISIG); // make raw
+    toptions.c_oflag &= ~OPOST; // make raw
+
+    // see: http://unixwiz.net/techtips/termios-vmin-vtime.html
+    toptions.c_cc[VMIN]  = 0;
+    toptions.c_cc[VTIME] = 20;
+    
+    if( tcsetattr(fd, TCSANOW, &toptions) < 0) 
+        {
+        perror("init_serialport: Couldn't set term attributes");
+        return -1;
+        }
+    return fd;
+}
+
+//###################################################################################
+
+    // want these to persist between calls
+char selected_axis = '0';
+int bJogging = false;
+int bJogOn = false;
+
+void sendCommand(char ch)
+{
+char cmdbuff[50];
+
+    switch(ch)
+        {
+        case 'X':
+                selected_axis = '0';
+                break;                
+        case 'Y':
+                selected_axis = '1';
+                break;                
+        case 'Z':
+                selected_axis = '2';
+                break;                
+        case 'E':
+                system("halcmd setp halui.estop.activate 1");
+                system("halcmd setp halui.estop.reset 0");
+                break;
+        case 'e':
+                system("halcmd setp halui.estop.reset 1"); 
+                system("halcmd setp halui.estop.activate 0");                                       
+                break;
+        case 'M':
+                system("halcmd setp halui.machine.on 1");  
+                system("halcmd setp halui.machine.off 0");                                      
+                break;
+        case 'm':
+                system("halcmd setp halui.machine.off 1"); 
+                system("halcmd setp halui.machine.on 0");                                                         
+                break;
+        case 'H':
+                system("halcmd setp halui.home-all 1");                                                         
+                break;
+        case 'C':
+                system("halcmd setp halui.mist.on 1");  
+                system("halcmd setp halui.mist.off 0");                                      
+                break;
+        case 'c':
+                system("halcmd setp halui.mist.off 1"); 
+                system("halcmd setp halui.mist.on 0");                                                         
+                break;                        
+        case '1':
+                system("halcmd setp halui.mdi-command-10 1"); 
+                system("halcmd setp halui.mdi-command-11 0"); 
+                system("halcmd setp halui.mdi-command-12 0"); 
+                break;                        
+        case '2':
+                system("halcmd setp halui.mdi-command-10 0"); 
+                system("halcmd setp halui.mdi-command-11 1"); 
+                system("halcmd setp halui.mdi-command-12 0"); 
+                break;                        
+        case '3':
+                system("halcmd setp halui.mdi-command-10 0"); 
+                system("halcmd setp halui.mdi-command-11 0"); 
+                system("halcmd setp halui.mdi-command-12 1"); 
+                break;                        
+        case '4': // 100mm jog /min
+                system("halcmd setp halui.jog-speed 100");
+                break;
+        case '5': // 10mm jog / min
+                system("halcmd setp halui.jog-speed 10");
+                break;
+        case '6': // 1mm jog / min
+                system("halcmd setp halui.jog-speed 1");
+                break;  
+        case 'J':
+                // Jogging being set on pendant does nothing here
+                // JogOn = true but control over whether the jog arrows can
+                // initiate jogging is in the pendant, this just shadows that state
+                bJogOn = true;
+                break;
+        case 'j':
+                bJogging = false; 
+                bJogOn = false;                       
+                //system("halcmd setp halui.jog-speed 0"); Leave jog speed persistant when set
+                sprintf(cmdbuff, "halcmd setp halui.jog.%c.minus 0\0", selected_axis );
+                system(cmdbuff);                        
+                sprintf(cmdbuff, "halcmd setp halui.jog.%c.plus 0\0", selected_axis );
+                system(cmdbuff); 
+                bzero(cmdbuff, sizeof(cmdbuff));                       
+                break;                
+        case '<':
+                if(!bJogging)
+                    {
+                    sprintf(cmdbuff, "halcmd setp halui.jog.%c.minus 1\0", selected_axis );
+                    system(cmdbuff);
+                    bzero(cmdbuff, sizeof(cmdbuff));
+                    bJogging = true;
+                    }
+                else
+                    {
+                    sprintf(cmdbuff, "halcmd setp halui.jog.%c.minus 0\0", selected_axis );
+                    system(cmdbuff);
+                    bzero(cmdbuff, sizeof(cmdbuff));
+                    bJogging = false;
+                    }
+      
+                break;                        
+        case '>':
+                if(!bJogging)
+                    {
+                    sprintf(cmdbuff, "halcmd setp halui.jog.%c.plus 1\0", selected_axis );
+                    system(cmdbuff);
+                    bzero(cmdbuff, sizeof(cmdbuff));
+                    bJogging = true;
+                    }
+                else
+                    {
+                    sprintf(cmdbuff, "halcmd setp halui.jog.%c.plus 0\0", selected_axis );
+                    system(cmdbuff);
+                    bzero(cmdbuff, sizeof(cmdbuff));
+                    bJogging = false;                    
+                    }
+        
+                break;                        
+        default:
+                break;
+        }
+
+}
+
+
