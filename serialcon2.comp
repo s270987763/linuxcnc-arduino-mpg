@@ -202,42 +202,50 @@ char cmdbuff[50];
                 bzero(cmdbuff, sizeof(cmdbuff));                       
                 break;                
         case '<':
-                if(!bJogging)
-                    {
-                    sprintf(cmdbuff, "halcmd setp halui.jog.%c.minus 1\0", selected_axis );
-                    system(cmdbuff);
-                    bzero(cmdbuff, sizeof(cmdbuff));
-                    bJogging = true;
-                    }
-                else
-                    {
-                    sprintf(cmdbuff, "halcmd setp halui.jog.%c.minus 0\0", selected_axis );
-                    system(cmdbuff);
-                    bzero(cmdbuff, sizeof(cmdbuff));
-                    bJogging = false;
-                    }
+                  system("halcmd setp halui.axis.x.increment 1");
+                  sprintf(cmdbuff, "halcmd setp halui.jog.%c.minus 1\0", selected_axis );
+                  system(cmdbuff);
+                  bzero(cmdbuff, sizeof(cmdbuff));
+//                if(!bJogging)
+//                    {
+//                    sprintf(cmdbuff, "halcmd setp halui.jog.%c.minus 1\0", selected_axis );
+//                    system(cmdbuff);
+//                    bzero(cmdbuff, sizeof(cmdbuff));
+//                    bJogging = true;
+//                    }
+//                else
+//                    {
+//                    sprintf(cmdbuff, "halcmd setp halui.jog.%c.minus 0\0", selected_axis );
+//                    system(cmdbuff);
+//                    bzero(cmdbuff, sizeof(cmdbuff));
+//                    bJogging = false;
+//                    }
       
                 break;                        
         case '>':
-                if(!bJogging)
-                    {
-                    sprintf(cmdbuff, "halcmd setp halui.jog.%c.plus 1\0", selected_axis );
-                    system(cmdbuff);
-                    bzero(cmdbuff, sizeof(cmdbuff));
-                    bJogging = true;
-                    }
-                else
-                    {
-                    sprintf(cmdbuff, "halcmd setp halui.jog.%c.plus 0\0", selected_axis );
-                    system(cmdbuff);
-                    bzero(cmdbuff, sizeof(cmdbuff));
-                    bJogging = false;                    
-                    }
-        
+                 system("halcmd setp halui.axis.x.increment 1");
+                 sprintf(cmdbuff, "halcmd setp halui.jog.%c.plus 1\0", selected_axis );
+                 system(cmdbuff);
+                 bzero(cmdbuff, sizeof(cmdbuff));
+//               if(!bJogging)
+//                    {
+//                    sprintf(cmdbuff, "halcmd setp halui.jog.%c.plus 1\0", selected_axis );
+//                    system(cmdbuff);
+//                    bzero(cmdbuff, sizeof(cmdbuff));
+//                    bJogging = true;
+//                    }
+//                else
+//                    {
+//                    sprintf(cmdbuff, "halcmd setp halui.jog.%c.plus 0\0", selected_axis );
+//                    system(cmdbuff);
+//                    bzero(cmdbuff, sizeof(cmdbuff));
+//                    bJogging = false;                    
+//                    }
+//        
                 break;                        
-        default:
-                break;
-        }
+//        default:
+//                break;
+//        }
 
 }
 
